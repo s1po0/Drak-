@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#101012">
+  <title>Unreal Engine 4</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="ue4-canvas" tabindex="0"></canvas>
+
+  <div id="ue4-splash" class="splash">
+    <div class="splash__inner">
+      <div class="splash__mark" aria-label="Unreal Engine 4">
+        <svg viewBox="0 0 96 96" width="72" height="72" role="img" aria-hidden="true">
+          <circle cx="48" cy="48" r="44" fill="none" stroke="currentColor" stroke-width="3"/>
+          <path d="M48 20 66 76H56L48 50 40 76H30Z" fill="currentColor" opacity=".92"/>
+          <path d="M64 20h14l-9 30-5-30Z" fill="currentColor" opacity=".55"/>
+        </svg>
+      </div>
+
+      <h1 class="splash__title">Unreal Engine 4</h1>
+      <p id="ue4-status" class="splash__status">Starting host&hellip;</p>
+
+      <div class="splash__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="ue4-progressbar">
+        <div id="ue4-progress" class="splash__fill"></div>
+      </div>
+
+      <p id="ue4-detail" class="splash__detail"></p>
+    </div>
+  </div>
+
+  <div id="ue4-error" class="error" hidden>
+    <div class="error__inner">
+      <h2 id="ue4-error-title">Host error</h2>
+      <p id="ue4-error-message"></p>
+      <pre id="ue4-error-stack" hidden></pre>
+      <button id="ue4-error-reload" type="button">Reload</button>
+    </div>
+  </div>
+
+  <script>
+    // Host configuration. Point these at the output of File > Package Project > HTML5
+    // (or the WebGL/WASM target of your engine fork) after copying it into public/build/.
+    window.UE4_HOST_CONFIG = {
+      buildDir: 'build/',
+      buildName: 'UE4Game',
+      gameName: 'Unreal Engine 4',
+      backgroundColor: '#000000',
+      // Set to false if your build was packaged without pthreads / SharedArrayBuffer.
+      requireCrossOriginIsolation: true
+    };
+  </script>
+  <script src="host.js"></script>
+</body>
+</html>
