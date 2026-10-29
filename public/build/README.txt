@@ -14,5 +14,9 @@ Also supported, depending on how the package was configured:
   UE4Game.worker.js emitted when the build uses pthreads (serve via server.js
                     so SharedArrayBuffer and the COOP/COEP headers are present)
 
+While this folder is empty the host runs public/demo/UE4Game.js instead
+(window.UE4_HOST_CONFIG.buildDir is 'demo/'). After copying a real package,
+set buildDir to 'build/'.
+
 The host does not need anything else from the package: index.html, styles.css
 and the loading screen in ../ are already provided by this repository.

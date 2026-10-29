@@ -12,12 +12,20 @@ npm start        # http://localhost:3000  (PORT / HOST env vars supported)
 
 No dependencies are required — the host is a single Node static server.
 
-## Add the game
+## Preview it now
+
+`buildDir` ships as `demo/`, which loads `public/demo/UE4Game.js` — a small
+placeholder payload that speaks the same Emscripten `Module` protocol as a
+packaged game (progress hooks, `onRuntimeInitialized`, canvas render loop).
+The host is therefore fully visible on first run: loading screen → animated
+canvas.
+
+## Add the real game
 
 1. In UE 4.24: **File > Package Project > HTML5**.
 2. Copy the package output into `public/build/`:
    `UE4Game.js`, `UE4Game.wasm`, `UE4Game.data`, `favicon.ico`.
-3. Reload the page.
+3. Set `buildDir: 'build/'` in `public/index.html` and reload the page.
 
 ## Configuration
 
@@ -25,7 +33,7 @@ No dependencies are required — the host is a single Node static server.
 
 | key | default | meaning |
 | --- | --- | --- |
-| `buildDir` | `build/` | folder (relative to the host page) holding the package files |
+| `buildDir` | `demo/` | folder (relative to the host page) holding the package files |
 | `buildName` | `UE4Game` | base name of the packaged `.js` / `.wasm` / `.data` |
 | `gameName` | `Unreal Engine 4` | shown on the loading screen and as the page title |
 | `engineVersion` | `4.24` | engine version shown on the loading screen |

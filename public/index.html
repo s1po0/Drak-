@@ -47,7 +47,10 @@
     // Host configuration. Point these at the output of
     // UE 4.24 > File > Package Project > HTML5 after copying it into public/build/.
     window.UE4_HOST_CONFIG = {
-      buildDir: 'build/',
+      // 'demo/' loads the placeholder payload shipped with this repo so the host
+      // can be previewed. Switch to 'build/' once a real UE 4.24 package is copied
+      // into public/build/.
+      buildDir: 'demo/',
       buildName: 'UE4Game',
       gameName: 'Unreal Engine 4',
       engineVersion: '4.24',
