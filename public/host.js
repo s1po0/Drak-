@@ -6,7 +6,13 @@
   var BUILD_DIR = cfg.buildDir || 'build/';
   var BUILD_NAME = cfg.buildName || 'UE4Game';
   var GAME_NAME = cfg.gameName || 'Unreal Engine 4';
-  var REQUIRE_ISOLATION = cfg.requireCrossOriginIsolation !== false;
+  var ENGINE_VERSION = cfg.engineVersion || '4.24';
+  // UE 4.24 HTML5 is packaged single-threaded by default, so it runs without
+  // cross-origin isolation; the check is opt-in for pthread builds.
+  var REQUIRE_ISOLATION = cfg.requireCrossOriginIsolation === true;
+  var TITLE = GAME_NAME === 'Unreal Engine 4'
+    ? 'Unreal Engine ' + ENGINE_VERSION
+    : GAME_NAME;
 
   var canvas = document.getElementById('ue4-canvas');
   var splash = document.getElementById('ue4-splash');
@@ -19,7 +25,7 @@
   var errorMessage = document.getElementById('ue4-error-message');
   var errorStack = document.getElementById('ue4-error-stack');
 
-  document.title = GAME_NAME;
+  document.title = TITLE;
   if (canvas && cfg.backgroundColor) canvas.style.backgroundColor = cfg.backgroundColor;
 
   var depsDone = 0;
@@ -100,6 +106,12 @@
       locateFile: function (path) {
         return /^https?:|^\//.test(path) ? path : buildPath(path);
       },
+      // UE 4.24 ships an Emscripten 1.38-era runtime that still uses this to
+      // find the preloaded payload (UE4Game.data, or UE4Game.js.mem for
+      // asm.js-style packages). locateFile covers it on newer runtimes.
+      memoryInitializerPrefixURL: BUILD_DIR.replace(/\/?$/, '/'),
+      // The engine keeps its own loop alive after main().
+      noExitRuntime: true,
       print: function (text) { console.log('[UE4] ' + text); },
       printErr: function (text) { console.warn('[UE4] ' + text); },
       setStatus: function (text) {
@@ -117,7 +129,7 @@
       onRuntimeInitialized: function () {
         booted = true;
         setProgress(100);
-        setStatus('Starting ' + GAME_NAME);
+        setStatus('Starting ' + TITLE);
         setTimeout(hideSplash, 220);
       },
       onAbort: function (what) {
@@ -143,13 +155,13 @@
   function awaitBuild() {
     var jsUrl = buildPath(BUILD_NAME + '.js');
     setStatus('Looking for build');
-    setDetail(jsUrl);
+    setDetail('UE ' + ENGINE_VERSION + ' HTML5 · ' + jsUrl);
 
     probe(jsUrl).then(function (found) {
       if (!found) {
-        showError('No Unreal Engine 4 build found',
+        showError('No Unreal Engine 4.24 build found',
           'This host is ready, but there is no packaged game to run yet.\n\n' +
-          '1. In the editor: File > Package Project > HTML5 (or your WebGL/WASM target).\n' +
+          '1. In UE 4.24: File > Package Project > HTML5.\n' +
           '2. Copy the output (' + BUILD_NAME + '.js, ' + BUILD_NAME + '.wasm, ' +
           BUILD_NAME + '.data, favicon.ico) into public/build/.\n' +
           '3. Reload this page.\n\n' +
@@ -158,7 +170,7 @@
       }
 
       setProgress(4);
-      setStatus('Preparing ' + GAME_NAME);
+      setStatus('Preparing ' + TITLE);
       setDetail('');
       startLoader();
     });

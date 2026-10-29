@@ -1,7 +1,8 @@
 # Drak-
 
-Unreal Engine 4 browser host. Serves a packaged UE4 HTML5 / WebAssembly build
-with the loading screen, runtime bootstrap and HTTP headers the engine needs.
+Unreal Engine 4 browser host, targeting **UE 4.24** (the last release with
+official HTML5 support). Serves a packaged UE4 HTML5 / WebAssembly build with
+the loading screen, runtime bootstrap and HTTP headers the engine needs.
 
 ## Run
 
@@ -13,8 +14,7 @@ No dependencies are required — the host is a single Node static server.
 
 ## Add the game
 
-1. In the UE4 editor: **File > Package Project > HTML5** (or your engine fork's
-   WebGL / WebAssembly target).
+1. In UE 4.24: **File > Package Project > HTML5**.
 2. Copy the package output into `public/build/`:
    `UE4Game.js`, `UE4Game.wasm`, `UE4Game.data`, `favicon.ico`.
 3. Reload the page.
@@ -28,8 +28,14 @@ No dependencies are required — the host is a single Node static server.
 | `buildDir` | `build/` | folder (relative to the host page) holding the package files |
 | `buildName` | `UE4Game` | base name of the packaged `.js` / `.wasm` / `.data` |
 | `gameName` | `Unreal Engine 4` | shown on the loading screen and as the page title |
+| `engineVersion` | `4.24` | engine version shown on the loading screen |
 | `backgroundColor` | `#000000` | canvas clear colour behind the WebGL surface |
-| `requireCrossOriginIsolation` | `true` | pre-flight check for `SharedArrayBuffer` (pthread builds) |
+| `requireCrossOriginIsolation` | `false` | pre-flight check for `SharedArrayBuffer` (enable for pthread builds) |
+
+The loader is built for the Emscripten 1.38-era runtime that 4.24 packages:
+`locateFile` plus `memoryInitializerPrefixURL` resolve `UE4Game.data` (and the
+legacy `UE4Game.js.mem`), `noExitRuntime` keeps the engine loop alive, and
+`monitorRunDependencies` drives the progress bar.
 
 ## Server behaviour
 
