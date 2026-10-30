@@ -1,0 +1,15 @@
+{
+  "name": "drak-ue4-host",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Browser host for an Unreal Engine 4 HTML5/WebAssembly packaging output",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}
