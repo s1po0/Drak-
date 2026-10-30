@@ -53,7 +53,17 @@
     detailEl.textContent = text || '';
   }
 
+  var watchdog = 0;
+
+  function clearWatchdog() {
+    if (watchdog) {
+      clearTimeout(watchdog);
+      watchdog = 0;
+    }
+  }
+
   function showError(title, message, stack) {
+    clearWatchdog();
     splash.classList.add('is-hidden');
     errorTitle.textContent = title || 'Host error';
     errorMessage.textContent = message || '';
@@ -68,6 +78,7 @@
   }
 
   function hideSplash() {
+    clearWatchdog();
     splash.classList.add('is-hidden');
     canvas.classList.add('is-active');
     setTimeout(function () {
@@ -79,10 +90,17 @@
     return BUILD_DIR.replace(/\/?$/, '/') + file;
   }
 
+  // 'ok' | 'missing' | 'unknown'. Only a definitive 404/410 stops the boot:
+  // proxies and file:// style hosts often answer oddly and must not be treated
+  // as "no build".
   function probe(url) {
     return fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' }, cache: 'no-store' })
-      .then(function (res) { return res.ok || res.status === 206; })
-      .catch(function () { return false; });
+      .then(function (res) {
+        if (res.ok || res.status === 206) return 'ok';
+        if (res.status === 404 || res.status === 410) return 'missing';
+        return 'unknown';
+      })
+      .catch(function () { return 'unknown'; });
   }
 
   function environmentError() {
@@ -157,8 +175,8 @@
     setStatus('Looking for build');
     setDetail('UE ' + ENGINE_VERSION + ' HTML5 · ' + jsUrl);
 
-    probe(jsUrl).then(function (found) {
-      if (!found) {
+    probe(jsUrl).then(function (state) {
+      if (state === 'missing') {
         showError('No Unreal Engine 4.24 build found',
           'This host is ready, but there is no packaged game to run yet.\n\n' +
           '1. In UE 4.24: File > Package Project > HTML5.\n' +
@@ -204,4 +222,12 @@
 
   setIndeterminate();
   awaitBuild();
+
+  // If nothing reports ready the page still says what is happening instead of
+  // sitting on a silent splash screen.
+  watchdog = setTimeout(function () {
+    if (!booted) {
+      setDetail('Host is running. The payload has not reported ready yet - open the browser console for engine logs.');
+    }
+  }, 8000);
 })();

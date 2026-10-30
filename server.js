@@ -18,6 +18,11 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = path.join(__dirname, 'public');
 
+// Cross-origin isolation (COOP/COEP) is only needed by pthread builds that use
+// SharedArrayBuffer. It is off by default because it can break embedding in
+// preview/portal iframes; enable with CROSS_ORIGIN_ISOLATION=1.
+const CROSS_ORIGIN_ISOLATION = process.env.CROSS_ORIGIN_ISOLATION === '1';
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.htm': 'text/html; charset=utf-8',
@@ -53,12 +58,15 @@ function baseHeaders(ext) {
   const headers = {
     'Content-Type': MIME[ext] || 'application/octet-stream',
     'Access-Control-Allow-Origin': '*',
-    // Required so pthread-enabled UE4 builds can use SharedArrayBuffer.
-    'Cross-Origin-Opener-Policy': 'same-origin',
-    'Cross-Origin-Embedder-Policy': 'require-corp',
     'Cross-Origin-Resource-Policy': 'cross-origin',
     'X-Content-Type-Options': 'nosniff'
   };
+
+  if (CROSS_ORIGIN_ISOLATION) {
+    // Required so pthread-enabled UE4 builds can use SharedArrayBuffer.
+    headers['Cross-Origin-Opener-Policy'] = 'same-origin';
+    headers['Cross-Origin-Embedder-Policy'] = 'require-corp';
+  }
   if (ext === '.html' || ext === '.htm' || ext === '.js') {
     headers['Cache-Control'] = 'no-store';
   } else {
@@ -154,4 +162,5 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`UE4 host serving ${ROOT}`);
   console.log(`http://${HOST}:${PORT}`);
+  console.log(`cross-origin isolation: ${CROSS_ORIGIN_ISOLATION ? 'on' : 'off (set CROSS_ORIGIN_ISOLATION=1 for pthread builds)'}`);
 });

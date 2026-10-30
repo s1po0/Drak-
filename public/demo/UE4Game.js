@@ -13,7 +13,15 @@
 
   var M = window.Module || (window.Module = {});
   var canvas = M.canvas || document.getElementById('ue4-canvas');
-  var ctx = canvas.getContext('2d', { alpha: false });
+  var ctx = canvas ? canvas.getContext('2d', { alpha: false }) : null;
+
+  if (!ctx) {
+    // Leave the host splash in place: without a 2D context there is nothing to
+    // draw, and a silent black canvas looks like a broken host.
+    if (typeof M.printErr === 'function') M.printErr('2D canvas unavailable');
+    if (typeof M.setStatus === 'function') M.setStatus('Canvas unavailable in this browser');
+    return;
+  }
 
   var status = function (text) {
     if (typeof M.setStatus === 'function') M.setStatus(text);
