@@ -6,3 +6,15 @@ npm-debug.log*
 # Packaged Unreal build artifacts (large binaries, kept out of Git).
 public/build/*
 !public/build/README.txt
+
+# Unreal Engine 5 project artifacts
+Ironvow/Binaries/
+Ironvow/Intermediate/
+Ironvow/Saved/
+Ironvow/DerivedDataCache/
+Ironvow/.vs/
+Ironvow/*.sln
+Ironvow/*.VC.db
+Ironvow/*.opensdf
+Ironvow/*.sdf
+Ironvow/Content/**/*.umap.autosave

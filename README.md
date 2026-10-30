@@ -1,5 +1,15 @@
 # Drak-
 
+Two Unreal projects live here:
+
+- `Ironvow/` — **Unreal Engine 5.4** physics-driven medieval duelling game (C++ core, Blueprint
+  facing). See `Ironvow/README.md` and `Ironvow/Docs/`.
+- the rest of this repository — a **UE 4.24** HTML5 browser host that serves a packaged 4.24 build.
+
+---
+
+# UE 4.24 HTML5 host
+
 Unreal Engine 4 browser host, targeting **UE 4.24** (the last release with
 official HTML5 support). Serves a packaged UE4 HTML5 / WebAssembly build with
 the loading screen, runtime bootstrap and HTTP headers the engine needs.
