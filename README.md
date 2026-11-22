@@ -39,7 +39,23 @@ python -m kurdish_game_translator.cli pack Fallen-Elf-Freya-vFinal-Mod.apk work/
 ```
 *(ئەگەر پیتە کوردییەکان وەک چوارگۆشە دەرکەوتن، فۆنتێکی وەک `NotoSansArabic-Regular.ttf` بە `--font path/to/font.ttf` زیاد بکە.)*
 
-### ٤. ڕەنکردنی ڕاستەوخۆ لەسەر GitHub Actions (بەبێ کۆمپیوتەر)
+### ٤. بۆ یارییە گەورەکانی UnityFS (`android.ab` / AvgCreator وەک Fallen Elf Freya)
+کاتێک فایلی `android.ab` زۆر گەورەیە (~٥ گێگابایت کاتێک دەکرێتەوە)، `avg-extract` و `avg-pack` تەنها بەشی `CAB` و `game.json` دەردەهێنن و پاشان بە کەمترین RAM دووبارە دەیپێچنەوە:
+```bash
+# ١. دەرهێنانی game.json و unique_en.json لە android.ab
+python -m kurdish_game_translator.cli avg-extract android.ab -o work_avg
+
+# ٢. تەرجەمەکردنی unique_en.json بۆ کوردیی سۆرانی
+python -m kurdish_game_translator.cli avg-translate work_avg/unique_en.json -o work_avg/unique_ckb.json
+
+# ٣. خستنەوەی دەقە کوردییەکان بە پێچەوانەکردنەوەی دروست (visual RTL + line-wrapping)
+python -m kurdish_game_translator.cli avg-pack android.ab work_avg/unique_ckb.json -w work_avg -o work_avg/android_ckb.ab --rtl-mode visual
+
+# ٤. گۆڕینی فۆنتەکان لە bin/Data/ بۆ فۆنتی کوردی-پشتیوان (بۆ نەمانی چوارگۆشەی □□□)
+python -m kurdish_game_translator.cli patch-font bin/Data/20c529ce41df043bba11419a7bb4ec8d DejaVuSans.ttf -o bin/Data/20c529ce41df043bba11419a7bb4ec8d
+```
+
+### ٥. ڕەنکردنی ڕاستەوخۆ لەسەر GitHub Actions (بەبێ کۆمپیوتەر)
 لەناو ڕیپۆکەدا لە GitHub بڕۆ بەشی **Actions** -> **Kurdish Sorani APK Translator** -> **Run workflow**:
 1. لینکی Dropboxـی APKـەکە بنووسە لە `apk_url`.
 2. `extract_only` یان `full_pipeline` هەڵبژێرە.

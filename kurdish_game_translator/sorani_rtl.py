@@ -12,7 +12,7 @@ from bidi.algorithm import get_display
 # Matches common Unity / VN / RPG placeholders & markup tags so translators
 # do not corrupt variable names, rich-text tags, or escaped newlines.
 TAG_PATTERN = re.compile(
-    r"(<[^>]+>|\{[0-9a-zA-Z_.:-]+\}|%[0-9]*\$?[sdif]|\\n|\\r|\\t|\[[^\]]+\])"
+    r"(\$\{[^}]+\}|<[^>]+>|\{[0-9a-zA-Z_.:-]+\}|%[0-9]*\$?[sdif]|\\n|\\r|\\t|\[[^\]]+\])"
 )
 
 

@@ -8,17 +8,18 @@ on:
   workflow_dispatch:
     inputs:
       apk_url:
-        description: "Direct or Dropbox ?dl=0/?dl=1 link to the Unity .apk"
+        description: "Direct or Dropbox ?dl=0/?dl=1 link to the Unity .apk or unique_en.json"
         required: true
         type: string
       mode:
-        description: "extract_only (fast, outputs strings.json) or full_pipeline (extract + translate + repack APK)"
+        description: "extract_only, full_pipeline (APK), or avg_translate (unique_en.json -> unique_ckb.json)"
         required: true
         default: "extract_only"
         type: choice
         options:
           - extract_only
           - full_pipeline
+          - avg_translate
       rtl_mode:
         description: "Kurdish RTL mode for full_pipeline"
         required: false
@@ -66,6 +67,9 @@ jobs:
           mkdir -p work
           if [ "$JOB_MODE" = "extract_only" ]; then
             python -m kurdish_game_translator.cli extract "$APK_URL" -o work
+          elif [ "$JOB_MODE" = "avg_translate" ]; then
+            python -c "from pathlib import Path; from kurdish_game_translator.apk_extractor import download_apk; download_apk('$APK_URL', Path('work/unique_en.json'))"
+            python -m kurdish_game_translator.cli avg-translate work/unique_en.json -o work/unique_ckb.json
           else
             python -m kurdish_game_translator.cli pipeline "$APK_URL" -w work -o work/translated_ckb.apk --rtl-mode "$RTL_MODE"
           fi
@@ -76,6 +80,7 @@ jobs:
           path: |
             work/strings.json
             work/strings_ckb.json
+            work/unique_ckb.json
             work/translated_ckb.apk
           if-no-files-found: warn
           retention-days: 7
