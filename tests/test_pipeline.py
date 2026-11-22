@@ -6,7 +6,11 @@ import json
 import zipfile
 from pathlib import Path
 
-from kurdish_game_translator.apk_extractor import extract_from_apk, normalize_dropbox_url
+from kurdish_game_translator.apk_extractor import (
+    extract_from_apk,
+    extract_from_path,
+    normalize_dropbox_url,
+)
 from kurdish_game_translator.apk_repacker import repack_apk
 from kurdish_game_translator.sorani_rtl import format_kurdish_rtl, protect_tags, restore_tags
 from kurdish_game_translator.translator import translate_manifest
@@ -111,3 +115,18 @@ def test_apk_extract_translate_repack_roundtrip(tmp_path: Path) -> None:
         assert "دەستپێکردنی یاری" in new_txt
         assert "12345" in new_txt
         assert "ڕێکخستنەکان" in new_txt
+
+
+def test_extract_from_unpacked_directory(tmp_path: Path) -> None:
+    unpacked = tmp_path / "FallenElfFreya"
+    (unpacked / "bin" / "Data" / "Managed" / "Metadata").mkdir(parents=True)
+    (unpacked / "bin" / "Data" / "Managed" / "Metadata" / "global-metadata.dat").write_bytes(b"meta")
+    (unpacked / "localization.json").write_text(
+        json.dumps({"greeting": "Hello Freya"}), encoding="utf-8"
+    )
+    out_dir = tmp_path / "out"
+    manifest = extract_from_path(unpacked, out_dir)
+    assert manifest["scripting_backend"] == "IL2CPP"
+    assert manifest["total_strings"] == 1
+    assert manifest["entries"][0]["original"] == "Hello Freya"
+

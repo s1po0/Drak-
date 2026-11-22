@@ -136,11 +136,155 @@ def _is_unity_data_member(member_name: str) -> bool:
     lower = member_name.lower()
     if not lower.startswith("assets/"):
         return False
-    if lower.endswith((".assets", ".ress", ".resource", ".bundle", ".unity3d")):
+    if lower.endswith((".assets", ".ress", ".resource", ".bundle", ".unity3d", ".ab")):
         return True
     if "assets/bin/data/" in lower and not lower.endswith(".ress"):
         return True
     return False
+
+
+def _scan_unity_env(
+    env: Any,
+    container_path: str,
+    entries: List[ExtractedEntry],
+    fonts_found: List[str],
+) -> None:
+    """Extract TextAsset, MonoBehaviour, and Font entries from a loaded UnityPy environment."""
+    for obj in env.objects:
+        if obj.type.name == "Font":
+            try:
+                font_data = obj.read()
+                fonts_found.append(f"{container_path}:{getattr(font_data, 'm_Name', 'Font')}")
+            except Exception:
+                pass
+        elif obj.type.name == "TextAsset":
+            try:
+                ta = obj.read()
+                raw_script = ta.m_Script
+                if isinstance(raw_script, bytes):
+                    text = raw_script.decode("utf-8", errors="replace")
+                else:
+                    text = str(raw_script)
+                extracted = _extract_text_blob(
+                    text=text,
+                    source_type="unity_text_asset",
+                    container_path=container_path,
+                    asset_name=getattr(ta, "m_Name", f"TextAsset_{obj.path_id}"),
+                    path_id=obj.path_id,
+                    counter_start=len(entries) + 1,
+                )
+                entries.extend(extracted)
+            except Exception:
+                continue
+        elif obj.type.name == "MonoBehaviour":
+            try:
+                tree = obj.read_typetree()
+                if isinstance(tree, dict):
+                    asset_name = str(tree.get("m_Name") or f"MonoBehaviour_{obj.path_id}")
+                    for key_path, val in _walk_json_strings(tree):
+                        if key_path == "m_Name":
+                            continue
+                        entries.append(
+                            ExtractedEntry(
+                                id=f"str_{len(entries) + 1:06d}",
+                                source_type="unity_mono_behaviour",
+                                container_path=container_path,
+                                asset_name=asset_name,
+                                path_id=obj.path_id,
+                                json_key_path=key_path,
+                                original=val,
+                            )
+                        )
+            except Exception:
+                continue
+
+
+def extract_from_path(source_path: Path, output_dir: Path) -> Dict[str, Any]:
+    """Extract translatable strings from a Unity .apk, .ab/.bundle file, or unpacked folder."""
+    if source_path.is_dir():
+        return extract_from_directory(source_path, output_dir)
+    if source_path.suffix.lower() != ".apk":
+        return extract_from_unity_file(source_path, output_dir)
+    return extract_from_apk(source_path, output_dir)
+
+
+def extract_from_unity_file(unity_file: Path, output_dir: Path) -> Dict[str, Any]:
+    """Extract translatable strings directly from a standalone Unity .ab / .bundle / .assets file."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    entries: List[ExtractedEntry] = []
+    fonts_found: List[str] = []
+
+    env = UnityPy.load(str(unity_file))
+    _scan_unity_env(env, unity_file.name, entries, fonts_found)
+
+    manifest = {
+        "apk_name": unity_file.name,
+        "engine": "Unity",
+        "scripting_backend": "Unknown",
+        "unity_asset_files": [unity_file.name],
+        "raw_text_files": [],
+        "fonts_found": fonts_found,
+        "total_strings": len(entries),
+        "entries": [asdict(e) for e in entries],
+    }
+    (output_dir / "strings.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return manifest
+
+
+def extract_from_directory(root_dir: Path, output_dir: Path) -> Dict[str, Any]:
+    """Extract translatable strings from an unpacked APK/Unity assets directory."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    entries: List[ExtractedEntry] = []
+    unity_members: List[str] = []
+    raw_text_members: List[str] = []
+    fonts_found: List[str] = []
+
+    all_files = sorted(p for p in root_dir.rglob("*") if p.is_file())
+    is_il2cpp = any(p.name == "libil2cpp.so" or p.name == "global-metadata.dat" for p in all_files)
+    has_mono = any("managed" in [part.lower() for part in p.parts] and p.suffix.lower() == ".dll" for p in all_files)
+
+    for file_path in all_files:
+        rel = file_path.relative_to(root_dir).as_posix()
+        lower = rel.lower()
+        if file_path.suffix.lower() in TEXT_EXTENSIONS:
+            text = file_path.read_text(encoding="utf-8-sig", errors="replace")
+            raw_text_members.append(rel)
+            entries.extend(
+                _extract_text_blob(
+                    text=text,
+                    source_type="raw_asset",
+                    container_path=rel,
+                    asset_name=file_path.name,
+                    path_id=None,
+                    counter_start=len(entries) + 1,
+                )
+            )
+            continue
+
+        if lower.endswith((".ab", ".bundle", ".unity3d", ".assets")) or "bin/data/" in lower:
+            unity_members.append(rel)
+            try:
+                env = UnityPy.load(str(file_path))
+                _scan_unity_env(env, rel, entries, fonts_found)
+            except Exception:
+                continue
+
+    manifest = {
+        "apk_name": root_dir.name,
+        "engine": "Unity",
+        "scripting_backend": "IL2CPP" if is_il2cpp else ("Mono" if has_mono else "Unknown"),
+        "unity_asset_files": unity_members,
+        "raw_text_files": raw_text_members,
+        "fonts_found": fonts_found,
+        "total_strings": len(entries),
+        "entries": [asdict(e) for e in entries],
+    }
+    (output_dir / "strings.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return manifest
 
 
 def extract_from_apk(apk_path: Path, output_dir: Path) -> Dict[str, Any]:
@@ -184,7 +328,7 @@ def extract_from_apk(apk_path: Path, output_dir: Path) -> Dict[str, Any]:
                 continue
 
             # 2. Unity serialized files & AssetBundles
-            if _is_unity_data_member(member):
+            if _is_unity_data_member(member) or lower.endswith(".ab"):
                 unity_members.append(member)
                 data = zf.read(member)
                 try:
@@ -192,54 +336,7 @@ def extract_from_apk(apk_path: Path, output_dir: Path) -> Dict[str, Any]:
                 except Exception:
                     continue
 
-                for obj in env.objects:
-                    if obj.type.name == "Font":
-                        try:
-                            font_data = obj.read()
-                            fonts_found.append(f"{member}:{getattr(font_data, 'm_Name', 'Font')}")
-                        except Exception:
-                            pass
-                    elif obj.type.name == "TextAsset":
-                        try:
-                            ta = obj.read()
-                            raw_script = ta.m_Script
-                            if isinstance(raw_script, bytes):
-                                text = raw_script.decode("utf-8", errors="replace")
-                            else:
-                                text = str(raw_script)
-                            extracted = _extract_text_blob(
-                                text=text,
-                                source_type="unity_text_asset",
-                                container_path=member,
-                                asset_name=getattr(ta, "m_Name", f"TextAsset_{obj.path_id}"),
-                                path_id=obj.path_id,
-                                counter_start=len(entries) + 1,
-                            )
-                            entries.extend(extracted)
-                        except Exception:
-                            continue
-                    elif obj.type.name == "MonoBehaviour":
-                        try:
-                            tree = obj.read_typetree()
-                            if isinstance(tree, dict):
-                                asset_name = str(tree.get("m_Name") or f"MonoBehaviour_{obj.path_id}")
-                                for key_path, val in _walk_json_strings(tree):
-                                    if key_path == "m_Name":
-                                        continue
-                                    entries.append(
-                                        ExtractedEntry(
-                                            id=f"str_{len(entries) + 1:06d}",
-                                            source_type="unity_mono_behaviour",
-                                            container_path=member,
-                                            asset_name=asset_name,
-                                            path_id=obj.path_id,
-                                            json_key_path=key_path,
-                                            original=val,
-                                        )
-                                    )
-                        except Exception:
-                            # MonoBehaviour without embedded TypeTree (common in IL2CPP without dump)
-                            continue
+                _scan_unity_env(env, member, entries, fonts_found)
 
     manifest = {
         "apk_name": apk_path.name,

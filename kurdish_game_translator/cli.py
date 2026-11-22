@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from .apk_extractor import download_apk, extract_from_apk
+from .apk_extractor import download_apk, extract_from_path
 from .apk_repacker import repack_apk
 from .translator import translate_manifest
 
@@ -18,7 +18,7 @@ def _resolve_apk(source: str, work_dir: Path) -> Path:
         return download_apk(source, dest)
     path = Path(source)
     if not path.exists():
-        raise FileNotFoundError(f"APK file not found: {path}")
+        raise FileNotFoundError(f"Source path not found: {path}")
     return path
 
 
@@ -62,7 +62,7 @@ def main() -> None:
     if args.command == "extract":
         out_dir = Path(args.output)
         apk = _resolve_apk(args.source, out_dir)
-        manifest = extract_from_apk(apk, out_dir)
+        manifest = extract_from_path(apk, out_dir)
         print(
             json.dumps(
                 {
@@ -96,7 +96,7 @@ def main() -> None:
     elif args.command == "pipeline":
         workdir = Path(args.workdir)
         apk = _resolve_apk(args.source, workdir)
-        extract_from_apk(apk, workdir)
+        extract_from_path(apk, workdir)
         strings_json = workdir / "strings.json"
         ckb_json = workdir / "strings_ckb.json"
         translate_manifest(
