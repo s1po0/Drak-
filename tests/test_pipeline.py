@@ -269,3 +269,10 @@ def test_unityfs_stream_extract_and_repack(tmp_path: Path) -> None:
     assert bytes(stream[len(new_cab) : len(new_cab) + len(ress_orig)]) == ress_orig
 
 
+def test_cli_module_imports() -> None:
+    import kurdish_game_translator.cli as cli
+
+    assert callable(cli.main)
+
+
+

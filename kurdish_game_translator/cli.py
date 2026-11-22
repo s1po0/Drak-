@@ -16,7 +16,7 @@ from .avgcreator import (
     patch_unity_font_file,
     translate_unique_items,
 )
-from .translator import make_google_translator, translate_manifest
+from .translator import translate_manifest
 from .unityfs_stream import extract_primary_cab, repack_bundle_with_cab
 
 
