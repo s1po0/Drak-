@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import re
 import textwrap
+import threading
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -109,6 +112,7 @@ def translate_unique_items(
     out_json_path: Path,
     translate_fn: Callable[[str], str],
     cache_path: Optional[Path] = None,
+    max_workers: int = 1,
 ) -> Dict[str, Any]:
     """Translate unique_en.json items into logical Kurdish Sorani (ckb) with tag protection."""
     items = json.loads(unique_json_path.read_text(encoding="utf-8"))
@@ -116,6 +120,7 @@ def translate_unique_items(
     if cache_path and cache_path.exists():
         cache = json.loads(cache_path.read_text(encoding="utf-8"))
 
+    pending = []
     for item in items:
         if item.get("ckb"):
             continue
@@ -126,17 +131,61 @@ def translate_unique_items(
         if en in cache:
             item["ckb"] = cache[en]
             continue
-        protected, tokens = protect_tags(en)
-        translated = restore_tags(translate_fn(protected), tokens)
-        item["ckb"] = translated
-        cache[en] = translated
-        if cache_path:
-            cache_path.parent.mkdir(parents=True, exist_ok=True)
-            cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+        pending.append(item)
+
+    def _translate_one(en_text: str) -> str:
+        protected, tokens = protect_tags(en_text)
+        last_err: Optional[Exception] = None
+        for attempt in range(4):
+            try:
+                raw = translate_fn(protected)
+                if raw:
+                    return restore_tags(raw, tokens)
+            except Exception as exc:
+                last_err = exc
+            time.sleep(0.5 * (2**attempt))
+        if last_err:
+            raise last_err
+        return en_text
+
+    if max_workers <= 1:
+        for idx, item in enumerate(pending, 1):
+            en = item["en"]
+            translated = _translate_one(en)
+            item["ckb"] = translated
+            cache[en] = translated
+            if cache_path and idx % 50 == 0:
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+    else:
+        lock = threading.Lock()
+        done_count = 0
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            fut_map = {pool.submit(_translate_one, item["en"]): item for item in pending}
+            for fut in as_completed(fut_map):
+                item = fut_map[fut]
+                en = item["en"]
+                try:
+                    translated = fut.result()
+                except Exception:
+                    translated = en
+                with lock:
+                    item["ckb"] = translated
+                    cache[en] = translated
+                    done_count += 1
+                    if cache_path and done_count % 100 == 0:
+                        cache_path.parent.mkdir(parents=True, exist_ok=True)
+                        cache_path.write_text(
+                            json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8"
+                        )
+
+    if cache_path:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
 
     out_json_path.parent.mkdir(parents=True, exist_ok=True)
     out_json_path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"total": len(items), "output": str(out_json_path)}
+    return {"total": len(items), "translated_now": len(pending), "output": str(out_json_path)}
 
 
 def patch_game_json_with_translations(

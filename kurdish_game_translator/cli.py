@@ -74,6 +74,7 @@ def main() -> None:
     p_at.add_argument("unique_json", help="Path to unique_en.json")
     p_at.add_argument("-o", "--output", default="work_avg/unique_ckb.json", help="Translated unique JSON")
     p_at.add_argument("--cache", default="work_avg/avg_cache.json", help="Translation cache path")
+    p_at.add_argument("--workers", type=int, default=8, help="Parallel translation threads")
 
     p_ap = sub.add_parser("avg-pack", help="Patch game.json and stream-repack android.ab")
     p_ap.add_argument("bundle", help="Original android.ab UnityFS bundle")
@@ -153,12 +154,24 @@ def main() -> None:
         res = extract_unique_en_strings(game_json, unique_json)
         print(json.dumps({"cab": meta["nodes"][0][3], **res}, ensure_ascii=False, indent=2))
     elif args.command == "avg-translate":
-        tr_fn = make_google_translator(source="en", target="ckb")
+        import threading
+        from deep_translator import GoogleTranslator
+
+        tls = threading.local()
+
+        def _thread_translate(text: str) -> str:
+            tr = getattr(tls, "tr", None)
+            if tr is None:
+                tr = GoogleTranslator(source="en", target="ckb")
+                tls.tr = tr
+            return tr.translate(text) or text
+
         res = translate_unique_items(
             Path(args.unique_json),
             Path(args.output),
-            tr_fn,
+            _thread_translate,
             cache_path=Path(args.cache) if args.cache else None,
+            max_workers=args.workers,
         )
         print(json.dumps(res, ensure_ascii=False, indent=2))
     elif args.command == "avg-pack":
