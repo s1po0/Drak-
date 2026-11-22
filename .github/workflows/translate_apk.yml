@@ -60,8 +60,9 @@ jobs:
           pip install -r requirements.txt
       - name: Download android.zip parts, translate to Kurdish Sorani, and repack android.ab
         run: |
-          python - <<'PY' 2>&1 | tee /tmp/freya_ci.log || { echo "::error::$(tail -n 30 /tmp/freya_ci.log)"; exit 1; }
-          import subprocess, sys, zipfile
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee /tmp/freya_ci.log || { echo "::error::$(tail -n 35 /tmp/freya_ci.log | tr '\n' ' ')"; exit 1; }
+          import json, subprocess, sys, zipfile
           from concurrent.futures import ThreadPoolExecutor
           from pathlib import Path
           from kurdish_game_translator.apk_extractor import download_apk
@@ -95,14 +96,15 @@ jobs:
           ab_path = work / "unpacked" / "android.ab"
           print("Unpacked android.ab:", ab_path.stat().st_size, flush=True)
 
-          for cmd in [
-              [sys.executable, "-m", "kurdish_game_translator.cli", "avg-extract", str(ab_path), "-o", "work_avg"],
-              [sys.executable, "-m", "kurdish_game_translator.cli", "avg-translate", "work_avg/unique_en.json", "-o", "work_avg/unique_ckb.json", "--workers", "12"],
-              [sys.executable, "-m", "kurdish_game_translator.cli", "avg-pack", str(ab_path), "work_avg/unique_ckb.json", "-w", "work_avg", "-o", "work_avg/android.ab", "--rtl-mode", "visual"],
-          ]:
-              print("Running:", " ".join(cmd), flush=True)
-              subprocess.run(cmd, check=True)
-          print("Finished android.ab:", (work / "android.ab").stat().st_size, flush=True)
+          subprocess.run([sys.executable, "-m", "kurdish_game_translator.cli", "avg-extract", str(ab_path), "-o", "work_avg"], check=True)
+          subprocess.run([sys.executable, "-m", "kurdish_game_translator.cli", "avg-translate", "work_avg/unique_en.json", "-o", "work_avg/unique_ckb.json", "--workers", "10"], check=True)
+          items = json.loads((work / "unique_ckb.json").read_text(encoding="utf-8"))
+          ckb_changed = sum(1 for x in items if x.get("ckb") and x["ckb"] != x["en"])
+          print(f"::notice::Translated {ckb_changed}/{len(items)} unique strings to Kurdish Sorani", flush=True)
+          if ckb_changed < 1000:
+              raise RuntimeError(f"Too few strings translated ({ckb_changed}/{len(items)})")
+          subprocess.run([sys.executable, "-m", "kurdish_game_translator.cli", "avg-pack", str(ab_path), "work_avg/unique_ckb.json", "-w", "work_avg", "-o", "work_avg/android.ab", "--rtl-mode", "visual"], check=True)
+          print(f"::notice::Repacked android.ab size={(work / 'android.ab').stat().st_size}", flush=True)
           PY
       - name: Upload Kurdish android.ab and unique_ckb.json
         uses: actions/upload-artifact@v4
