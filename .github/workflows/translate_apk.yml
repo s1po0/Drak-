@@ -1,0 +1,81 @@
+name: Kurdish Sorani APK Translator
+
+on:
+  push:
+    branches: ["main", "arena/**"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      apk_url:
+        description: "Direct or Dropbox ?dl=0/?dl=1 link to the Unity .apk"
+        required: true
+        type: string
+      mode:
+        description: "extract_only (fast, outputs strings.json) or full_pipeline (extract + translate + repack APK)"
+        required: true
+        default: "extract_only"
+        type: choice
+        options:
+          - extract_only
+          - full_pipeline
+      rtl_mode:
+        description: "Kurdish RTL mode for full_pipeline"
+        required: false
+        default: "logical"
+        type: choice
+        options:
+          - logical
+          - visual
+          - pua
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+      - name: Run unit tests
+        run: pytest -v
+
+  run-apk-job:
+    if: github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Extract or translate APK
+        env:
+          APK_URL: ${{ inputs.apk_url }}
+          JOB_MODE: ${{ inputs.mode }}
+          RTL_MODE: ${{ inputs.rtl_mode }}
+        run: |
+          mkdir -p work
+          if [ "$JOB_MODE" = "extract_only" ]; then
+            python -m kurdish_game_translator.cli extract "$APK_URL" -o work
+          else
+            python -m kurdish_game_translator.cli pipeline "$APK_URL" -w work -o work/translated_ckb.apk --rtl-mode "$RTL_MODE"
+          fi
+      - name: Upload extracted strings / translated APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kurdish-game-output
+          path: |
+            work/strings.json
+            work/strings_ckb.json
+            work/translated_ckb.apk
+          if-no-files-found: warn
+          retention-days: 7

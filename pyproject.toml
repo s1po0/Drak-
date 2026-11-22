@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kurdish-game-translator"
+version = "0.1.0"
+description = "Extract, translate to Kurdish Sorani (ckb), and repack Unity Android APK game assets."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "UnityPy>=1.20.0",
+    "arabic-reshaper>=3.0.0",
+    "python-bidi>=0.4.2",
+    "deep-translator>=1.11.4",
+    "requests>=2.31.0",
+]
+
+[project.scripts]
+kurdish-game-translate = "kurdish_game_translator.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
