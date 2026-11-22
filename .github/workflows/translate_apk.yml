@@ -58,17 +58,31 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Download unique_en.json and translate to Kurdish Sorani
+      - name: Download android.zip parts, translate to Kurdish Sorani, and repack android.ab
         run: |
-          mkdir -p work_avg
-          curl -fsSL -L "https://www.dropbox.com/scl/fi/t3bnvlqz57l24rbngf65c/unique_en.json?rlkey=aaftil14wwmg9jfkg25jlfaaq&dl=1" -o work_avg/unique_en.json
-          python -m kurdish_game_translator.cli avg-translate work_avg/unique_en.json -o work_avg/unique_ckb.json --workers 8
-      - name: Upload translated unique_ckb.json
+          mkdir -p work_avg/parts
+          curl -fsSL "https://uc7d6d705fb7d88ac691764a1416.dl.dropboxusercontent.com/cd/0/get/DMe0onIOgePTSSrEFgEu-rKrGU8_Ec3nGwrNA309ozFqX1bLqGRPsDFxhq5CrxANCwCPTVpgq3L2r9K5-4LtOeF2tmbok7rfIo11Zbikk9_gPmIEw4_FGt7nYfs90w1bJ4Cw_AGonDrE4_uR9iVPezANYDZ09i6XofSssTjGMk1Xsw/file?c_luid=83a09ff5" -o work_avg/parts/android.zip.001 &
+          curl -fsSL "https://uc01b80973fef7d23a5f942d415e.dl.dropboxusercontent.com/cd/0/get/DMcd1rrMeU4ZX0iRrn9WpNq3Nk2opn7xzqEpvuaIzqhka9AjwL-Nkz8c05Knwb5Eh6jQdpw448BQGEFnaLy2XI3FcfGiPKBGIXrteUNU5xjwCYwwHZ_oK8CaOxuET9S9R9loDE9LtOeiXHOptWaaocyCTYXzl3IdIQtrdVW6dkTSuQ/file?c_luid=83a09ff5" -o work_avg/parts/android.zip.002 &
+          curl -fsSL "https://ucf8273ef2dc944744bc675e4306.dl.dropboxusercontent.com/cd/0/get/DMduXwO34h0jCeB4RsOXVxHMht0EGCCJVQsUuLPEFPmK27tZnp7aKkF2FP-0jmJOLB0UukXzn77UEcAxwfhT71LNLhAdOZpIQdQfqHk6jmVB2ODJtZboJ-ve-jBwLrTxqqy8KkKMLHdppnslJW6HLKXFlmYPKGSa-or6Y71nFkVs-A/file?c_luid=83a09ff5" -o work_avg/parts/android.zip.003 &
+          curl -fsSL "https://uced58675048565c1394f1d58281.dl.dropboxusercontent.com/cd/0/get/DMcEkQj59IJlJMs9k9Ls7na9NZnWUwBNgsrUkL0JUP94TOyJ2uTGCzUIDF9mbG4Z-Jzk6Um0QIm8myzdtYOAvaxgDtAybWJBdXK8jwq3Fp3rwlKYHTBJ03jjpekSfYtiITrImRQhoiIipaxRSFx7d8MzkKRbIQVeXI15xBnmNWUaZA/file?c_luid=83a09ff5" -o work_avg/parts/android.zip.004 &
+          curl -fsSL "https://uc53ae03e65c43cbb30e0aca6e4a.dl.dropboxusercontent.com/cd/0/get/DMeeLiL4K5JjZXIIlppEMjNTF0NtViwzReaWQdPQmXRaZZSBzFXt4sBlUKdTf26695C5l0OXlg6He-Pi875RWfC8OWxFQvIhnVgMibs-64CVpjBuIV5TDYGNaMX2w_Hq9rNGhLXuUReurxipLELCNfAUJmU9lQp4DFRhohbkmA_Z9g/file?c_luid=83a09ff5" -o work_avg/parts/android.zip.005 &
+          curl -fsSL "https://uc49e13899ddf45ee0371c8493e7.dl.dropboxusercontent.com/cd/0/get/DMfl6r26INDiS8yMFcJHikxRzvBQiOWf8KHHzZQTLzE-IvJ7_tpHMdU5WwICUqASwWTN7izjEEuuxc63AzA9mVBkJ1AD5oxkEpuDFCCPcFHjwSA677w5Mz08W-GvdkzubCha_MgB0Z6ZTYfVrYmSkWGqQlENX3bbgn0mduIjdYjaEg/file?c_luid=83a09ff5" -o work_avg/parts/android.zip.006 &
+          wait
+          cat work_avg/parts/android.zip.* > work_avg/android.zip
+          rm -rf work_avg/parts
+          unzip -q work_avg/android.zip -d work_avg/unpacked
+          rm -f work_avg/android.zip
+          python -m kurdish_game_translator.cli avg-extract work_avg/unpacked/android.ab -o work_avg
+          python -m kurdish_game_translator.cli avg-translate work_avg/unique_en.json -o work_avg/unique_ckb.json --workers 12
+          python -m kurdish_game_translator.cli avg-pack work_avg/unpacked/android.ab work_avg/unique_ckb.json -w work_avg -o work_avg/android.ab --rtl-mode visual
+      - name: Upload Kurdish android.ab and unique_ckb.json
         uses: actions/upload-artifact@v4
         with:
-          name: unique-ckb
-          path: work_avg/unique_ckb.json
-          retention-days: 1
+          name: android-ab-kurdish
+          path: |
+            work_avg/android.ab
+            work_avg/unique_ckb.json
+          retention-days: 7
 
   run-apk-job:
     if: github.event_name == 'workflow_dispatch'
