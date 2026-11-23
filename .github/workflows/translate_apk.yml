@@ -49,6 +49,61 @@ jobs:
       - name: Run unit tests
         run: pytest -v
 
+  push-ab-to-gdrive-once:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/a84f22f1-drak'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install requests
+        run: python -m pip install -q requests
+      - name: Download built android.ab artifact and stream to Google Drive
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh run download 45086620044 -R "${{ github.repository }}" -n android-ab-kurdish -D /tmp/ab_dl
+          ls -lh /tmp/ab_dl
+          python - <<'PY' 2>&1 | tee /tmp/gd.log || { echo "::error::$(tail -n 30 /tmp/gd.log | tr '\n' ' ')"; exit 1; }
+          import requests
+          from pathlib import Path
+
+          session_uri = "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=True&upload_id=AFy3sg0VXqKsgfjKiVPDWEZiHHXOC7QD8nTsW5HYrGH8qTkX1e_0Jr5zyKc__LaklKc_pU5MqZ8jG2cwjk2C-FGHBkEezoa2Pk79LxwIvphXN6Y&session_crd=AHSoBRUFuN3A9XQLiMe6a_wnjJFabTbZmJi0UWAiEGAL4hARHZNkXoVTJuyjqnYGOmRtaKI6Gib6D671axY&upload_protocol=resumable"
+          ab_path = Path("/tmp/ab_dl/android.ab")
+          total = ab_path.stat().st_size
+          chunk_size = 8 * 1024 * 1024  # multiple of 256 KiB
+
+          offset = 0
+          with ab_path.open("rb") as f:
+              while offset < total:
+                  chunk = f.read(chunk_size)
+                  is_last = (offset + len(chunk) >= total)
+                  cmd = "upload, finalize" if is_last else "upload"
+                  headers = {
+                      "Content-Length": str(len(chunk)),
+                      "X-Goog-Upload-Offset": str(offset),
+                      "X-Goog-Upload-Command": cmd,
+                      "X-Goog-Upload-Total-Size": str(total),
+                  }
+                  resp = requests.put(session_uri, headers=headers, data=chunk, timeout=120)
+                  status_hdr = resp.headers.get("X-Goog-Upload-Status", "")
+                  if resp.status_code >= 400:
+                      raise RuntimeError(f"Upload failed HTTP {resp.status_code}: {resp.text[:300]}")
+                  if is_last and status_hdr != "final":
+                      raise RuntimeError(f"Expected final upload status, got {status_hdr!r}: {resp.text[:300]}")
+                  if not is_last and status_hdr and status_hdr != "active":
+                      raise RuntimeError(f"Unexpected upload status {status_hdr!r} at {offset}")
+                  offset += len(chunk)
+                  if is_last or (offset % (64 * 1024 * 1024) == 0):
+                      print(f"Uploaded {offset}/{total} ({status_hdr})", flush=True)
+                  if is_last:
+                      print("::notice::GDrive upload complete:", resp.text[:300], flush=True)
+          PY
+
   run-apk-job:
     if: github.event_name == 'workflow_dispatch'
     needs: test
