@@ -111,6 +111,7 @@ def test_apk_extract_translate_repack_roundtrip(tmp_path: Path) -> None:
         source_apk=apk_path,
         translated_json=work_dir / "strings_ckb.json",
         output_apk=out_apk,
+        sign=False,
     )
     assert summary["patched_files"] == 2
     assert summary["patched_entries"] == 7

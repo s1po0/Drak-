@@ -185,6 +185,7 @@ def repack_apk(
     translated_json: Path,
     output_apk: Path,
     font_ttf_path: Optional[Path] = None,
+    sign: bool = True,
 ) -> Dict[str, Any]:
     """Write translated strings (and optional Kurdish TTF font) into a new APK."""
     manifest = json.loads(translated_json.read_text(encoding="utf-8"))
@@ -287,7 +288,7 @@ def repack_apk(
             out_info.compress_type = compress_type
             zout.writestr(out_info, data)
 
-    signer = sign_apk_if_available(output_apk)
+    signer = sign_apk_if_available(output_apk) if sign else None
     return {
         "output_apk": str(output_apk),
         "patched_files": patched_files,
