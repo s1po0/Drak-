@@ -14,6 +14,7 @@ from .avgcreator import (
     patch_cab_game_json,
     patch_game_json_with_translations,
     patch_unity_font_file,
+    repack_avg_apk,
     translate_unique_items,
     translate_unique_items_batched,
 )
@@ -89,6 +90,15 @@ def main() -> None:
     p_pf.add_argument("font_asset", help="Path to Unity bin/Data font asset file")
     p_pf.add_argument("ttf", help="Path to Kurdish-capable .ttf font (e.g. DejaVuSans.ttf)")
     p_pf.add_argument("-o", "--output", required=True, help="Output patched font asset path")
+
+    p_apk = sub.add_parser("avg-pack-apk", help="Patch android.ab + Kurdish fonts inside an AvgCreator APK and sign it")
+    p_apk.add_argument("apk", help="Original .apk path")
+    p_apk.add_argument("translated_unique_json", help="Path to unique_ckb.json")
+    p_apk.add_argument("-o", "--output", default="work_avg/translated_ckb.apk", help="Output signed .apk path")
+    p_apk.add_argument("--ttf", default=None, help="Kurdish-capable .ttf font (e.g. DejaVuSans.ttf)")
+    p_apk.add_argument("--ttf-bold", default=None, help="Optional bold .ttf font (e.g. DejaVuSans-Bold.ttf)")
+    p_apk.add_argument("--rtl-mode", choices=["logical", "visual", "pua"], default="visual")
+    p_apk.add_argument("--wrap-width", type=int, default=52)
 
     args = parser.parse_args()
 
@@ -184,6 +194,17 @@ def main() -> None:
     elif args.command == "patch-font":
         fname = patch_unity_font_file(Path(args.font_asset), Path(args.ttf), Path(args.output))
         print(f"Patched Unity Font '{fname}' -> {args.output}")
+    elif args.command == "avg-pack-apk":
+        res = repack_avg_apk(
+            source_apk=Path(args.apk),
+            translated_unique_json=Path(args.translated_unique_json),
+            output_apk=Path(args.output),
+            ttf_regular=Path(args.ttf) if args.ttf else None,
+            ttf_bold=Path(args.ttf_bold) if args.ttf_bold else None,
+            rtl_mode=args.rtl_mode,
+            wrap_width=args.wrap_width,
+        )
+        print(json.dumps(res, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

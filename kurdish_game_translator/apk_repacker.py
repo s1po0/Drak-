@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -79,15 +80,41 @@ def _apply_entries_to_text(raw_text: str, entries: List[Dict[str, Any]]) -> str:
     return "\n".join(lines) + ("\n" if raw_text.endswith("\n") else "")
 
 
+def _find_android_tool(name: str) -> Optional[str]:
+    found = shutil.which(name)
+    if found:
+        return found
+    for env_var in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
+        sdk_root = os.environ.get(env_var)
+        if sdk_root:
+            bt_dir = Path(sdk_root) / "build-tools"
+            if bt_dir.is_dir():
+                for ver_dir in sorted(bt_dir.iterdir(), reverse=True):
+                    cand = ver_dir / name
+                    if cand.is_file():
+                        return str(cand)
+    return None
+
+
 def sign_apk_if_available(apk_path: Path) -> Optional[str]:
-    """Attempt to sign the APK with apksigner or jarsigner if installed."""
-    apksigner = shutil.which("apksigner")
+    """Align (zipalign -p 4) and sign the APK with apksigner or jarsigner if installed."""
+    zipalign = _find_android_tool("zipalign")
+    apksigner = _find_android_tool("apksigner")
     keytool = shutil.which("keytool")
     jarsigner = shutil.which("jarsigner")
     if not (keytool and (apksigner or jarsigner)):
         return None
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        if zipalign:
+            aligned = Path(tmpdir) / "aligned.apk"
+            subprocess.run(
+                [zipalign, "-p", "-f", "4", str(apk_path), str(aligned)],
+                check=True,
+                capture_output=True,
+            )
+            shutil.move(str(aligned), str(apk_path))
+
         keystore = Path(tmpdir) / "debug.keystore"
         subprocess.run(
             [

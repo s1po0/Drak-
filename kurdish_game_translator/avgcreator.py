@@ -5,16 +5,21 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import re
+import shutil
+import tempfile
 import textwrap
 import threading
 import time
+import zipfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import requests
 import UnityPy
 
+from .apk_repacker import sign_apk_if_available
 from .sorani_rtl import format_kurdish_rtl, protect_tags, restore_tags
+from .unityfs_stream import extract_primary_cab, repack_bundle_with_cab
 
 _PURE_EXPR_RE = re.compile(r"^\s*\$\{[^}]+\}\s*$")
 
@@ -385,3 +390,118 @@ def patch_unity_font_file(
     out_font_asset.parent.mkdir(parents=True, exist_ok=True)
     out_font_asset.write_bytes(env.file.save())
     return font_name
+
+
+def repack_avg_apk(
+    source_apk: Path,
+    translated_unique_json: Path,
+    output_apk: Path,
+    ttf_regular: Optional[Path] = None,
+    ttf_bold: Optional[Path] = None,
+    rtl_mode: str = "visual",
+    wrap_width: int = 52,
+    font_asset_names: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Patch android.ab + bin/Data Kurdish fonts inside an AvgCreator APK and sign it."""
+    target_fonts = set(
+        font_asset_names
+        or [
+            "20c529ce41df043bba11419a7bb4ec8d",  # Inter-Regular
+            "6f78546fd16db4d2c827303b6c7f13c9",  # Inter-Bold
+            "99dda42022873461eaf67aac0f6dcbb6",  # NotoSansCJKsc-Medium
+        ]
+    )
+    bold_font_id = "6f78546fd16db4d2c827303b6c7f13c9"
+
+    with tempfile.TemporaryDirectory() as tmpdir_str:
+        tmp = Path(tmpdir_str)
+        orig_ab = tmp / "orig_android.ab"
+        patched_ab = tmp / "patched_android.ab"
+        cab_path = tmp / "primary.cab"
+        game_json = tmp / "game.json"
+        patched_json = tmp / "game_ckb.json"
+        patched_cab = tmp / "primary_ckb.cab"
+
+        ab_arcname: Optional[str] = None
+        ab_compress_type = zipfile.ZIP_DEFLATED
+
+        with zipfile.ZipFile(source_apk, "r") as zin:
+            for item in zin.infolist():
+                if item.filename.endswith("/android.ab") or item.filename == "android.ab":
+                    ab_arcname = item.filename
+                    ab_compress_type = item.compress_type
+                    with zin.open(item) as src, orig_ab.open("wb") as dst:
+                        shutil.copyfileobj(src, dst, 4 * 1024 * 1024)
+                    break
+
+        if not ab_arcname:
+            raise FileNotFoundError(f"android.ab not found inside {source_apk}")
+
+        extract_primary_cab(orig_ab, cab_path)
+        extract_game_json_from_cab(cab_path, game_json)
+        p_stats = patch_game_json_with_translations(
+            game_json,
+            translated_unique_json,
+            patched_json,
+            rtl_mode=rtl_mode,
+            wrap_width=wrap_width,
+        )
+        patch_cab_game_json(cab_path, patched_json, patched_cab)
+        b_stats = repack_bundle_with_cab(orig_ab, patched_cab, patched_ab)
+
+        patched_fonts: List[str] = []
+        output_apk.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(source_apk, "r") as zin, zipfile.ZipFile(
+            output_apk, "w", compression=zipfile.ZIP_DEFLATED
+        ) as zout:
+            for item in zin.infolist():
+                if item.filename.startswith("META-INF/") and item.filename.endswith(
+                    (".SF", ".RSA", ".DSA", ".EC", "MANIFEST.MF")
+                ):
+                    continue
+
+                compress_type = (
+                    zipfile.ZIP_STORED
+                    if item.compress_type == zipfile.ZIP_STORED
+                    else zipfile.ZIP_DEFLATED
+                )
+
+                if item.filename == ab_arcname:
+                    zout.write(
+                        patched_ab,
+                        arcname=ab_arcname,
+                        compress_type=(
+                            zipfile.ZIP_STORED
+                            if ab_compress_type == zipfile.ZIP_STORED
+                            else zipfile.ZIP_DEFLATED
+                        ),
+                    )
+                    continue
+
+                base = Path(item.filename).name
+                if ttf_regular and item.filename.lower().startswith("assets/bin/data/") and base in target_fonts:
+                    src_font = tmp / f"src_{base}"
+                    out_font = tmp / f"out_{base}"
+                    with zin.open(item) as src, src_font.open("wb") as dst:
+                        shutil.copyfileobj(src, dst)
+                    chosen_ttf = ttf_bold if (base == bold_font_id and ttf_bold) else ttf_regular
+                    fname = patch_unity_font_file(src_font, chosen_ttf, out_font)
+                    patched_fonts.append(f"{fname} ({base})")
+                    zout.write(out_font, arcname=item.filename, compress_type=compress_type)
+                    continue
+
+                # Stream copy all remaining entries without buffering huge blobs in RAM
+                out_info = zipfile.ZipInfo(item.filename, date_time=item.date_time)
+                out_info.compress_type = compress_type
+                with zin.open(item) as src, zout.open(out_info, "w") as dst:
+                    shutil.copyfileobj(src, dst, 4 * 1024 * 1024)
+
+    signer = sign_apk_if_available(output_apk)
+    return {
+        "output_apk": str(output_apk),
+        "android_ab_entry": ab_arcname,
+        "patched_fonts": patched_fonts,
+        "signed_with": signer,
+        **p_stats,
+        "repacked_ab_bytes": b_stats["total_size"],
+    }

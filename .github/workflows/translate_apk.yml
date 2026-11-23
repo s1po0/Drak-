@@ -49,6 +49,80 @@ jobs:
       - name: Run unit tests
         run: pytest -v
 
+  build-kurdish-apk-once:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/a84f22f1-drak'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install system fonts & Python dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-dejavu-core
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Build complete signed Kurdish APK (android.ab + Kurdish fonts inside)
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee /tmp/freya_apk.log || { echo "::error::$(tail -n 35 /tmp/freya_apk.log | tr '\n' ' ')"; exit 1; }
+          import json, os, shutil, subprocess, sys, zipfile
+          from pathlib import Path
+          from kurdish_game_translator.apk_extractor import download_apk
+          from kurdish_game_translator.apk_repacker import _find_android_tool
+
+          work = Path("work_apk")
+          work.mkdir(parents=True, exist_ok=True)
+          src_apk = work / "orig.apk"
+          apk_url = "https://www.dropbox.com/scl/fi/bby2q4npuakdxgsfvdd8x/Fallen-Elf-Freya-vFinal-Mod.apk?rlkey=r66fxm4hzsxytkccii39yturw&st=57ngxf5p&dl=1"
+          download_apk(apk_url, src_apk)
+          print("Downloaded APK:", src_apk.stat().st_size, flush=True)
+
+          # Extract android.ab from APK for translation
+          ab_path = work / "android.ab"
+          with zipfile.ZipFile(src_apk, "r") as zf:
+              ab_names = [n for n in zf.namelist() if n.endswith(".ab")]
+              print("Found .ab entries in APK:", ab_names, flush=True)
+              target_ab = next((n for n in ab_names if n.endswith("/android.ab") or n == "android.ab"), ab_names[0])
+              with zf.open(target_ab) as s, ab_path.open("wb") as d:
+                  shutil.copyfileobj(s, d, 4 * 1024 * 1024)
+
+          subprocess.run([sys.executable, "-m", "kurdish_game_translator.cli", "avg-extract", str(ab_path), "-o", str(work)], check=True)
+          ab_path.unlink()
+          subprocess.run([sys.executable, "-m", "kurdish_game_translator.cli", "avg-translate", str(work / "unique_en.json"), "-o", str(work / "unique_ckb.json")], check=True)
+
+          items = json.loads((work / "unique_ckb.json").read_text(encoding="utf-8"))
+          ckb_changed = sum(1 for x in items if x.get("ckb") and x["ckb"] != x["en"])
+          print(f"::notice::Translated {ckb_changed}/{len(items)} unique strings", flush=True)
+          if ckb_changed < 1000:
+              raise RuntimeError(f"Too few translated strings: {ckb_changed}")
+
+          out_apk = work / "Fallen-Elf-Freya-Kurdish.apk"
+          subprocess.run([
+              sys.executable, "-m", "kurdish_game_translator.cli", "avg-pack-apk",
+              str(src_apk), str(work / "unique_ckb.json"),
+              "-o", str(out_apk),
+              "--ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+              "--ttf-bold", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+              "--rtl-mode", "visual",
+          ], check=True)
+          src_apk.unlink()
+
+          apksigner = _find_android_tool("apksigner")
+          if apksigner:
+              subprocess.run([apksigner, "verify", "--print-certs", str(out_apk)], check=True)
+          print(f"::notice::Built signed APK size={out_apk.stat().st_size} apksigner={apksigner}", flush=True)
+          PY
+      - name: Upload ready-to-install Kurdish APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fallen-Elf-Freya-Kurdish-APK
+          path: work_apk/Fallen-Elf-Freya-Kurdish.apk
+          retention-days: 7
+
   run-apk-job:
     if: github.event_name == 'workflow_dispatch'
     needs: test
