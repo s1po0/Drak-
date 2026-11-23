@@ -15,6 +15,7 @@ from .avgcreator import (
     patch_game_json_with_translations,
     patch_unity_font_file,
     translate_unique_items,
+    translate_unique_items_batched,
 )
 from .translator import translate_manifest
 from .unityfs_stream import extract_primary_cab, repack_bundle_with_cab
@@ -154,24 +155,10 @@ def main() -> None:
         res = extract_unique_en_strings(game_json, unique_json)
         print(json.dumps({"cab": meta["nodes"][0][3], **res}, ensure_ascii=False, indent=2))
     elif args.command == "avg-translate":
-        import threading
-        from deep_translator import GoogleTranslator
-
-        tls = threading.local()
-
-        def _thread_translate(text: str) -> str:
-            tr = getattr(tls, "tr", None)
-            if tr is None:
-                tr = GoogleTranslator(source="en", target="ckb")
-                tls.tr = tr
-            return tr.translate(text) or text
-
-        res = translate_unique_items(
+        res = translate_unique_items_batched(
             Path(args.unique_json),
             Path(args.output),
-            _thread_translate,
             cache_path=Path(args.cache) if args.cache else None,
-            max_workers=args.workers,
         )
         print(json.dumps(res, ensure_ascii=False, indent=2))
     elif args.command == "avg-pack":

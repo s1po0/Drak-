@@ -1,5 +1,9 @@
 name: Kurdish Sorani APK Translator
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: ["main", "arena/**"]
@@ -49,6 +53,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/arena/a84f22f1-drak'
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

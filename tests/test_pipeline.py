@@ -17,6 +17,7 @@ from kurdish_game_translator.avgcreator import (
     is_non_translatable,
     patch_game_json_with_translations,
     translate_unique_items,
+    translate_unique_items_batched,
     wrap_for_visual_rtl,
 )
 from kurdish_game_translator.sorani_rtl import format_kurdish_rtl, protect_tags, restore_tags
@@ -193,6 +194,17 @@ def test_avgcreator_extract_translate_and_patch(tmp_path: Path) -> None:
 
     wrapped = wrap_for_visual_rtl("یەک دوو سێ چوار پێنج شەش حەوت هەشت نۆ دە یازدە دوازدە", max_width=24)
     assert "\n" in wrapped
+
+    tr_batched = tmp_path / "unique_ckb_batched.json"
+    translate_unique_items_batched(
+        unique_json,
+        tr_batched,
+        batch_fn=lambda s: s.replace("Start Game", "دەستپێکردن").replace("HP", "تەندروستی"),
+        cache_path=tmp_path / "cache_batched.json",
+    )
+    batched_items = json.loads(tr_batched.read_text(encoding="utf-8"))
+    assert any(it["ckb"] == "دەستپێکردن" for it in batched_items)
+    assert any(it["ckb"] == "${db.hero.hp} تەندروستی" for it in batched_items)
 
 
 def test_unityfs_stream_extract_and_repack(tmp_path: Path) -> None:

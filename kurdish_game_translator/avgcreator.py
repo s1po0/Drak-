@@ -9,8 +9,9 @@ import textwrap
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
+import requests
 import UnityPy
 
 from .sorani_rtl import format_kurdish_rtl, protect_tags, restore_tags
@@ -182,6 +183,105 @@ def translate_unique_items(
     if cache_path:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    out_json_path.parent.mkdir(parents=True, exist_ok=True)
+    out_json_path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"total": len(items), "translated_now": len(pending), "output": str(out_json_path)}
+
+
+def gtx_translate_text(text: str, source: str = "en", target: str = "ckb", timeout: int = 15) -> str:
+    """Translate text via Google Translate GTX endpoint with explicit timeout."""
+    resp = requests.post(
+        "https://translate.googleapis.com/translate_a/single",
+        params={"client": "gtx", "sl": source, "tl": target, "dt": "t"},
+        data={"q": text},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+    if not payload or not payload[0]:
+        return text
+    return "".join(seg[0] for seg in payload[0] if seg and seg[0])
+
+
+def translate_unique_items_batched(
+    unique_json_path: Path,
+    out_json_path: Path,
+    batch_fn: Optional[Callable[[str], str]] = None,
+    cache_path: Optional[Path] = None,
+    max_batch_chars: int = 3500,
+    max_batch_items: int = 25,
+) -> Dict[str, Any]:
+    """Fast batched translator for unique_en.json (~60 requests for 2,000 strings)."""
+    fn = batch_fn or (lambda s: gtx_translate_text(s, source="en", target="ckb"))
+    items = json.loads(unique_json_path.read_text(encoding="utf-8"))
+    cache: Dict[str, str] = {}
+    if cache_path and cache_path.exists():
+        cache = json.loads(cache_path.read_text(encoding="utf-8"))
+
+    pending: List[Dict[str, Any]] = []
+    for item in items:
+        if item.get("ckb"):
+            continue
+        en = item["en"]
+        if is_non_translatable(en):
+            item["ckb"] = en
+            continue
+        if en in cache:
+            item["ckb"] = cache[en]
+            continue
+        pending.append(item)
+
+    sep = "\n§§§\n"
+    idx = 0
+    while idx < len(pending):
+        batch: List[Dict[str, Any]] = []
+        prot_list: List[str] = []
+        tokens_list: List[List[str]] = []
+        cur_chars = 0
+        while idx < len(pending) and len(batch) < max_batch_items:
+            p, toks = protect_tags(pending[idx]["en"])
+            if batch and (cur_chars + len(p) + len(sep) > max_batch_chars):
+                break
+            batch.append(pending[idx])
+            prot_list.append(p)
+            tokens_list.append(toks)
+            cur_chars += len(p) + len(sep)
+            idx += 1
+
+        joined = sep.join(prot_list)
+        parts: Optional[List[str]] = None
+        for attempt in range(3):
+            try:
+                tr_joined = fn(joined)
+                candidate = [s.strip() for s in re.split(r"\n?\s*§§§\s*\n?", tr_joined)]
+                if len(candidate) == len(batch):
+                    parts = candidate
+                    break
+            except Exception:
+                time.sleep(1.0 * (attempt + 1))
+
+        if parts is None:
+            # Fallback to single-item translation for this batch
+            parts = []
+            for p in prot_list:
+                out_p = p
+                for attempt in range(3):
+                    try:
+                        out_p = fn(p)
+                        break
+                    except Exception:
+                        time.sleep(0.5 * (attempt + 1))
+                parts.append(out_p)
+
+        for item, tr_part, toks in zip(batch, parts, tokens_list):
+            restored = restore_tags(tr_part, toks)
+            item["ckb"] = restored
+            cache[item["en"]] = restored
+
+        if cache_path:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
 
     out_json_path.parent.mkdir(parents=True, exist_ok=True)
     out_json_path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
