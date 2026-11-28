@@ -1,0 +1,40 @@
+name: Translate Game Strings to Kurdish Sorani (ckb)
+
+on:
+  push:
+    branches:
+      - arena/a685ecde-drak
+    paths:
+      - "data/strings_en.json.gz"
+      - "tools/translate_ckb.py"
+      - ".github/workflows/translate_ckb.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/a685ecde-drak
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Google Translate (en -> ckb)
+        run: |
+          python3 tools/translate_ckb.py
+
+      - name: Commit translations_ckb.json.gz back to branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/translations_ckb.json.gz
+          git commit -m "chore: add Sorani Kurdish (ckb) Google translations [skip ci]" || echo "No changes"
+          git push origin HEAD:arena/a685ecde-drak
