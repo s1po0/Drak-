@@ -78,7 +78,7 @@ def parse_tag_name(tag_token: str) -> tuple[bool, str] | None:
     return is_close, name
 
 
-def check_tags_valid(s: str, orig_masks: List[str]) -> bool:
+def check_tags_valid(s: str, orig_masks: List[str], orig_str: str = "") -> bool:
     """
     Verify:
     1. Every substitution [var] / printf %s from orig_masks is preserved in s.
@@ -93,12 +93,18 @@ def check_tags_valid(s: str, orig_masks: List[str]) -> bool:
     if orig_vars != new_vars:
         return False
 
+    allow_close_bracket = "[[" in orig_masks
+    allow_close_brace = "{{" in orig_masks
+
     # Check tag nesting stack
     stack: List[str] = []
     for kind, val in tokens:
         if kind == "TEXT":
-            # Ensure no stray unescaped single '[' or ']' or '{' or '}' leaked
-            if any(c in val for c in "{}[]"):
+            if "[" in val or "{" in val:
+                return False
+            if "]" in val and not allow_close_bracket:
+                return False
+            if "}" in val and not allow_close_brace:
                 return False
         else:
             parsed = parse_tag_name(val)
