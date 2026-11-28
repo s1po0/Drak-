@@ -19,28 +19,23 @@ jobs:
         with:
           ref: arena/a685ecde-drak
 
-      - name: Download Ren'Py 8.5.3.26051504 SDK & test loading generated .rpyc
-        continue-on-error: true
+      - name: Compile +00kurdish_tl.rpyc & verify .rpyc patcher with official Ren'Py 8.5.3 SDK
         run: |
-          python3 - << 'PY' > test_output.txt 2>&1
-          import urllib.request, subprocess, os
-          url = "https://github.com/renpy/renpy/releases/download/8.5.3.26051504/renpy-8.5.3-sdk.tar.bz2"
-          print("Downloading", url, flush=True)
-          urllib.request.urlretrieve(url, "/tmp/renpy.tar.bz2")
-          os.makedirs("/tmp/sdk", exist_ok=True)
-          subprocess.run(["tar", "-xjf", "/tmp/renpy.tar.bz2", "-C", "/tmp/sdk", "--strip-components=1"], check=True)
-          p = subprocess.run(["python3", "tools/test_renpy_load.py", "/tmp/sdk"], text=True, capture_output=True)
-          print("RC:", p.returncode)
-          print("STDOUT:\n", p.stdout)
-          print("STDERR:\n", p.stderr)
-          PY
+          curl -L -sS -o /tmp/renpy.tar.bz2 https://github.com/renpy/renpy/releases/download/8.5.3.26051504/renpy-8.5.3-sdk.tar.bz2
+          mkdir -p /tmp/sdk
+          tar -xjf /tmp/renpy.tar.bz2 -C /tmp/sdk --strip-components=1
+          python3 tools/test_renpy_load.py /tmp/sdk > test_output.txt 2>&1 || true
+          cat test_output.txt
 
-      - name: Push test_output.txt
+      - name: Push official +00kurdish_tl.rpyc & test_output.txt
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin arena/a685ecde-drak
           git add test_output.txt
-          git commit -m "test: capture Ren'Py 8.5.3 diagnostic output [skip ci]" || true
+          if [ -f "data/+00kurdish_tl.rpyc" ]; then
+            git add "data/+00kurdish_tl.rpyc"
+          fi
+          git commit -m "build: compile official +00kurdish_tl.rpyc with Ren'Py 8.5.3 SDK [skip ci]" || true
           git push origin HEAD:arena/a685ecde-drak
