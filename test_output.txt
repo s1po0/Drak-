@@ -1,0 +1,84 @@
+Downloading https://github.com/renpy/renpy/releases/download/8.5.3.26051504/renpy-8.5.3-sdk.tar.bz2
+RC: 1
+STDOUT:
+ Running: ['/tmp/sdk/renpy.sh', '/tmp/test_proj', 'lint']
+STDOUT:
+ Failed to load src/+00kurdish_tl.rpyc: Init.__init__() missing 3 required positional arguments: 'loc', 'block', and 'priority'
+Failed to load src/+00kurdish_tl.rpyc: Init.__init__() missing 3 required positional arguments: 'loc', 'block', and 'priority'
+
+Full traceback:
+  File "renpy/bootstrap.py", line 401, in bootstrap
+    renpy.main.main()
+    ~~~~~~~~~~~~~~~^^
+  File "renpy/main.py", line 412, in main
+    renpy.game.script.load_script()  # sets renpy.game.script.
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^                           
+  File "renpy/script.py", line 470, in load_script
+    self.load_appropriate_file(".rpyc", ["_ren.py", ".rpy"], dir, fn, initcode)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "renpy/script.py", line 1087, in load_appropriate_file
+    raise Exception("Could not load file %s." % lastfn)  # type: ignore
+Exception: Could not load file /tmp/test_proj/game/src/+00kurdish_tl.rpyc.
+
+While loading the script.
+Exception: Could not load file /tmp/test_proj/game/src/+00kurdish_tl.rpyc.
+
+STDERR:
+ 
+=== /tmp/test_proj/traceback.txt ===
+﻿I'm sorry, but an uncaught exception occurred.
+
+While loading the script.
+Exception: Could not load file /tmp/test_proj/game/src/+00kurdish_tl.rpyc.
+
+-- Full Traceback ------------------------------------------------------------
+
+Traceback (most recent call last):
+  File "renpy/bootstrap.py", line 401, in bootstrap
+    renpy.main.main()
+    ~~~~~~~~~~~~~~~^^
+  File "renpy/main.py", line 412, in main
+    renpy.game.script.load_script()  # sets renpy.game.script.
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^                           
+  File "renpy/script.py", line 470, in load_script
+    self.load_appropriate_file(".rpyc", ["_ren.py", ".rpy"], dir, fn, initcode)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "renpy/script.py", line 1087, in load_appropriate_file
+    raise Exception("Could not load file %s." % lastfn)  # type: ignore
+Exception: Could not load file /tmp/test_proj/game/src/+00kurdish_tl.rpyc.
+
+Linux-7.0.0-1020-azure-x86_64-with-glibc2.43 x86_64
+Ren'Py 8.5.3.26051504
+ 
+Sat Nov 28 18:08:08 2026
+
+=== /tmp/test_proj/log.txt ===
+2026-11-28 18:08:07 UTC
+Linux-7.0.0-1020-azure-x86_64-with-glibc2.43
+Ren'Py 8.5.3.26051504
+
+Early init took 44 ms
+Loading error handling took 34 ms
+Failed to load src/+00kurdish_tl.rpyc: Init.__init__() missing 3 required positional arguments: 'loc', 'block', and 'priority'
+Failed to load src/+00kurdish_tl.rpyc: Init.__init__() missing 3 required positional arguments: 'loc', 'block', and 'priority'
+
+Full traceback:
+  File "renpy/bootstrap.py", line 401, in bootstrap
+    renpy.main.main()
+    ~~~~~~~~~~~~~~~^^
+  File "renpy/main.py", line 412, in main
+    renpy.game.script.load_script()  # sets renpy.game.script.
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^                           
+  File "renpy/script.py", line 470, in load_script
+    self.load_appropriate_file(".rpyc", ["_ren.py", ".rpy"], dir, fn, initcode)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "renpy/script.py", line 1087, in load_appropriate_file
+    raise Exception("Could not load file %s." % lastfn)  # type: ignore
+Exception: Could not load file /tmp/test_proj/game/src/+00kurdish_tl.rpyc.
+
+While loading the script.
+Exception: Could not load file /tmp/test_proj/game/src/+00kurdish_tl.rpyc.
+
+
+STDERR:
+ 
