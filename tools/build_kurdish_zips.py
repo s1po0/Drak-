@@ -476,10 +476,42 @@ def main():
             zout.writestr(zi, payload)
     print(f"  1.zip built ({os.path.getsize('/tmp/drak_work/out/1.zip'):,} bytes, {patched_files_1} scripts patched).")
 
-    # 2. Build x-src/x-+00kurdish_tl.rpyc and 2.zip
-    print("Generating x-src/x-+00kurdish_tl.rpyc ...")
-    tl_rpyc_bytes = build_translate_strings_rpyc(trans)
-    print(f"  x-src/x-+00kurdish_tl.rpyc size: {len(tl_rpyc_bytes):,} bytes")
+    # 2. Load OFFICIAL Ren'Py 8.5.3 SDK compiled data/+00kurdish_tl.rpyc
+    # and tighten zlib compression from level 3 to level 9 (preserving 100% identical pickle & digest!)
+    official_tl_path = "data/+00kurdish_tl.rpyc"
+    assert os.path.exists(official_tl_path), "Missing official compiled data/+00kurdish_tl.rpyc!"
+    with open(official_tl_path, "rb") as f:
+        orig_tl = f.read()
+    pos = 10
+    tl_slots = []
+    while True:
+        sl, st, ln = struct.unpack("<III", orig_tl[pos : pos + 12])
+        pos += 12
+        if sl == 0:
+            break
+        raw_slot = zlib.decompress(orig_tl[st : st + ln])
+        tl_slots.append((sl, raw_slot, zlib.compress(raw_slot, 9)))
+    tl_digest = orig_tl[-16:]
+    # Slot 1 and Slot 2 in +00kurdish_tl.rpyc have identical raw_slot bytes; share offset if identical!
+    hdr_len = 10 + 12 * (len(tl_slots) + 1)
+    tl_buf = bytearray(b"RENPY RPC2")
+    if len(tl_slots) == 2 and tl_slots[0][1] == tl_slots[1][1]:
+        c9 = tl_slots[0][2]
+        tl_buf.extend(struct.pack("<III", tl_slots[0][0], hdr_len, len(c9)))
+        tl_buf.extend(struct.pack("<III", tl_slots[1][0], hdr_len, len(c9)))
+        tl_buf.extend(struct.pack("<III", 0, 0, 0))
+        tl_buf.extend(c9)
+    else:
+        off = hdr_len
+        for sl, _raw_s, c9 in tl_slots:
+            tl_buf.extend(struct.pack("<III", sl, off, len(c9)))
+            off += len(c9)
+        tl_buf.extend(struct.pack("<III", 0, 0, 0))
+        for _sl, _raw_s, c9 in tl_slots:
+            tl_buf.extend(c9)
+    tl_buf.extend(tl_digest)
+    tl_rpyc_bytes = bytes(tl_buf)
+    print(f"Loaded official Ren'Py 8.5.3 compiled {official_tl_path} -> level-9 RPYC2 ({len(tl_rpyc_bytes):,} bytes)")
 
     print("Building /tmp/drak_work/out/2.zip ...")
     patched_files_2 = 0
